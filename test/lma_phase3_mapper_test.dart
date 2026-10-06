@@ -1,11 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:dsr_lma/core/constants/report_status.dart';
 import 'package:dsr_lma/features/companies/data/models/company.dart';
 import 'package:dsr_lma/features/lma/data/models/lma_config_models.dart';
 import 'package:dsr_lma/features/lma/domain/lma_api_mapper.dart';
 
 void main() {
-  test('buildLmaApiPayload maps submitted to published and includes response text', () {
+  test('buildLmaApiPayload maps submitted to published int and includes response text', () {
     final payload = buildLmaApiPayload(
       company: CompanyFormValues(
         companyId: 'cmp-1',
@@ -40,7 +41,7 @@ void main() {
       reportDate: DateTime(2026, 8, 17),
     );
 
-    expect(payload['status'], 'published');
+    expect(payload['status'], 2);
     expect(payload['title'], 'Acme Lean Maturity Assessment');
     expect(payload['report_date'], '2026-08-17');
 
@@ -48,6 +49,7 @@ void main() {
         payload['company_background'] as Map<String, dynamic>;
     final details = companyBackground['details'] as Map<String, dynamic>;
     expect(details['company_name'], 'Acme');
+    expect(details['total_workforce'], 120);
 
     final assessment = payload['assessment'] as Map<String, dynamic>;
     final assessmentDetails = assessment['details'] as Map<String, dynamic>;
@@ -90,24 +92,28 @@ void main() {
     expect(record.preparedBy, 'Jane Doe');
     expect(record.updatedBy, isNull);
     expect(record.reportDate, '2026-08-17');
+    expect(record.status, 2);
+    expect(record.displayStatus, 'Published');
     expect(record.responses.single.selectedResponse, 'Expert');
   });
 
-  test('mapLmaStatusToUi maps published to submitted', () {
-    expect(mapLmaStatusToUi('published'), 'submitted');
-    expect(mapLmaStatusToUi('draft'), 'draft');
-    expect(mapLmaStatusToUi('archived'), 'archived');
+  test('parses integer status and submitted alias', () {
+    expect(ReportStatus.parse('published'), ReportStatus.published);
+    expect(ReportStatus.parse('submitted'), ReportStatus.published);
+    expect(ReportStatus.parse('draft'), ReportStatus.draft);
+    expect(ReportStatus.parse('archived'), ReportStatus.archived);
   });
 
-  test('lmaRecordToFormPatch maps published status to submitted', () {
+  test('lmaRecordToFormPatch keeps published as integer 2', () {
     final patch = lmaRecordToFormPatch(
       normalizeLmaRecord({
         'id': 'a1',
-        'status': 'published',
+        'status': 2,
+        'status_label': 'Published',
         'company_background': {'details': {'company_name': 'Acme'}},
         'assessment': {'details': {'responses': []}},
       }),
     );
-    expect(patch['status'], 'submitted');
+    expect(patch['status'], 2);
   });
 }

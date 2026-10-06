@@ -92,6 +92,6 @@ lib/
 
 - Response envelope: `{ success, message, data }`
 - Auth: Bearer `access_token`; refresh on 401 once; no Bearer on `/auth/login` or `/auth/refresh`
-- UI status `submitted` ↔ API `published` (both LMA and DSR)
+- Report status is an integer for DSR and LMA: `1` Draft, `2` Published, `3` Archived (`submitted` still maps to `2`)
 - LMA and DSR share auth + companies; they do not share payloads
 - Company is autocomplete; location is a string on the company

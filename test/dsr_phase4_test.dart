@@ -29,7 +29,7 @@ void main() {
     expect(cost.productivityPerPerson, 1);
   });
 
-  test('buildDsrApiPayload wraps sections and maps submitted to published', () {
+  test('buildDsrApiPayload wraps sections and maps submitted to published int', () {
     final payload = buildDsrApiPayload(
       companyBackground: const DsrCompanyBackground(
         companyId: 'cmp-1',
@@ -53,13 +53,14 @@ void main() {
       status: 'submitted',
     );
 
-    expect(payload['status'], 'published');
+    expect(payload['status'], 2);
     expect(payload['title'], 'Acme Diagnostic Study');
 
     final background = payload['company_background'] as Map<String, dynamic>;
     final details = background['details'] as Map<String, dynamic>;
     expect(details['prepared_by'], 'Jane Doe');
     expect(details['analysis_period'], '2026-01-01 to 2026-08-17');
+    expect(details['total_workforce'], 1);
 
     final volume = payload['product_volume_mix'] as Map<String, dynamic>;
     final volumeDetails = volume['details'] as Map<String, dynamic>;
@@ -70,7 +71,8 @@ void main() {
   test('normalizeDsrRecord unwraps sections and coerces performance status', () {
     final record = normalizeDsrRecord({
       '_id': '507f1f77bcf86cd799439011',
-      'status': 'published',
+      'status': 2,
+      'status_label': 'Published',
       'created_by_name': 'Jane Doe',
       'updated_by': '507f1f77bcf86cd799439012',
       'company_background': {
@@ -112,6 +114,8 @@ void main() {
 
     expect(record.preparedBy, 'Jane Doe');
     expect(record.updatedBy, isNull);
+    expect(record.status, 2);
+    expect(record.displayStatus, 'Published');
     expect(record.qualityPerformance.single.status, 2);
     expect(record.headCountData.single.operators, 5);
     expect(record.processExcellence.leanBeltLevel, 5);

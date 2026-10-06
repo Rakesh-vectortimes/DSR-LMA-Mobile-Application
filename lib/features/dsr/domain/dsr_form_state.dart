@@ -1,3 +1,4 @@
+import '../../../core/constants/report_status.dart';
 import '../data/models/dsr_models.dart';
 import 'dsr_calculations.dart';
 import 'dsr_defaults.dart';
@@ -13,7 +14,7 @@ class DsrFormState {
     required this.costData,
     required this.deliveryPerformance,
     required this.processExcellence,
-    this.status = 'draft',
+    this.status = ReportStatus.draft,
   });
 
   DsrCompanyBackground companyBackground;
@@ -25,7 +26,7 @@ class DsrFormState {
   CostData costData;
   List<PerformanceRow> deliveryPerformance;
   ProcessExcellence processExcellence;
-  String status;
+  int status;
 
   factory DsrFormState.initial() {
     final now = DateTime.now();
@@ -54,7 +55,7 @@ class DsrFormState {
           .map((name) => PerformanceRow(description: name))
           .toList(),
       processExcellence: const ProcessExcellence(),
-      status: 'draft',
+      status: ReportStatus.draft,
     );
   }
 
@@ -91,7 +92,7 @@ class DsrFormState {
       deliveryPerformance = record.deliveryPerformance;
     }
     processExcellence = record.processExcellence;
-    status = record.status == 'published' ? 'submitted' : record.status;
+    status = ReportStatus.parse(record.status);
     recalculateAll();
   }
 

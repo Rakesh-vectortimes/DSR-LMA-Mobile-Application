@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/constants/report_status.dart';
 import '../../../../core/network/list_response.dart';
 import 'lma_config_models.dart';
 
@@ -26,7 +27,7 @@ class LmaQueryParams {
   final String? preparedBy;
   final String? reportDateFrom;
   final String? reportDateTo;
-  final String? status;
+  final int? status;
 
   Map<String, dynamic> toQueryParameters() => {
         'page': page,
@@ -141,6 +142,7 @@ class LeanMaturityAssessmentRecord extends Equatable {
     required this.id,
     required this.companyId,
     required this.status,
+    this.statusLabel = '',
     this.companyName,
     this.title,
     this.reportDate,
@@ -159,7 +161,8 @@ class LeanMaturityAssessmentRecord extends Equatable {
 
   final String id;
   final String? companyId;
-  final String status;
+  final int status;
+  final String statusLabel;
   final String? companyName;
   final String? title;
   final String? reportDate;
@@ -180,11 +183,15 @@ class LeanMaturityAssessmentRecord extends Equatable {
     return name.isEmpty ? 'Untitled assessment' : name;
   }
 
+  String get displayStatus =>
+      statusLabel.trim().isNotEmpty ? statusLabel.trim() : ReportStatus.labelOf(status);
+
   @override
   List<Object?> get props => [
         id,
         companyId,
         status,
+        statusLabel,
         companyName,
         title,
         reportDate,

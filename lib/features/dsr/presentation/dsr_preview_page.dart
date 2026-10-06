@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/report_status.dart';
 import '../../../core/export/export_filename.dart';
 import '../../../core/export/export_share.dart';
 import '../../../core/export/typography_controller.dart';
@@ -11,7 +12,6 @@ import '../../../shared/widgets/report_export_buttons.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../data/dsr_repository.dart';
 import '../data/models/dsr_models.dart';
-import '../domain/dsr_api_mapper.dart';
 import '../domain/dsr_defaults.dart';
 
 class DsrPreviewPage extends ConsumerStatefulWidget {
@@ -88,8 +88,10 @@ class _DsrPreviewPageState extends ConsumerState<DsrPreviewPage> {
               auth.canEditRecord(
                 createdByRole: _record!.createdByRole,
                 createdBy: _record!.raw?['created_by'],
-              ))
+              ) &&
+              _record!.status != ReportStatus.published)
             IconButton(
+              tooltip: 'Edit',
               onPressed: () => context.go(AppRoutes.dsrEdit(_record!.id)),
               icon: const Icon(Icons.edit_outlined),
             ),
@@ -148,7 +150,7 @@ class _PreviewBody extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    _Chip(label: 'Status', value: dsrStatusLabel(record.status)),
+                    _Chip(label: 'Status', value: record.displayStatus),
                     _Chip(label: 'Analysis period', value: record.analysisPeriod ?? 'N/A'),
                     _Chip(label: 'Prepared by', value: record.preparedBy ?? 'N/A'),
                     _Chip(label: 'Updated by', value: record.updatedBy ?? 'N/A'),

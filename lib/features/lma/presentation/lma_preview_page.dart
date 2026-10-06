@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/report_status.dart';
 import '../../../core/export/export_filename.dart';
 import '../../../core/export/export_share.dart';
 import '../../../core/export/typography_controller.dart';
@@ -107,7 +108,8 @@ class _LmaPreviewPageState extends ConsumerState<LmaPreviewPage> {
           if (_record != null && auth.canEditRecord(
             createdByRole: _record!.createdByRole,
             createdBy: _record!.raw?['created_by'],
-          ))
+          ) &&
+              _record!.status != ReportStatus.published)
             IconButton(
               onPressed: () => context.go(AppRoutes.lmaEdit(_record!.id)),
               icon: const Icon(Icons.edit_outlined),
@@ -175,7 +177,7 @@ class _PreviewBody extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    _InfoChip(label: 'Status', value: _statusLabel(record.status)),
+                    _InfoChip(label: 'Status', value: record.displayStatus),
                     _InfoChip(label: 'Report Date', value: record.reportDate ?? 'N/A'),
                     _InfoChip(label: 'Prepared By', value: record.preparedBy ?? 'N/A'),
                     _InfoChip(label: 'Updated By', value: record.updatedBy ?? 'N/A'),
@@ -325,17 +327,6 @@ class _PreviewBody extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  String _statusLabel(String value) {
-    switch (value.toLowerCase()) {
-      case 'published':
-        return 'Published';
-      case 'archived':
-        return 'Archived';
-      default:
-        return 'Draft';
-    }
   }
 
   LeanMaturityResponse? _responseForQuestion(int questionId) {

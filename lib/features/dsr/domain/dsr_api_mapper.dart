@@ -35,16 +35,8 @@ List<Map<String, dynamic>>? dsrSectionItems(Object? section) {
   return null;
 }
 
-String dsrStatusLabel(String? apiStatus) {
-  final status = (apiStatus ?? '').trim().toLowerCase();
-  switch (status) {
-    case 'published':
-      return 'Published';
-    case 'archived':
-      return 'Archived';
-    default:
-      return 'Draft';
-  }
+String dsrStatusLabel(Object? apiStatus, {String? statusLabel}) {
+  return ReportStatus.labelOf(apiStatus, statusLabel: statusLabel);
 }
 
 String dsrFormatDate(Object? value) {
@@ -215,7 +207,8 @@ DiagnosticStudyRecord normalizeDsrRecord(Map<String, dynamic> raw) {
     createdByRole: raw['created_by_role']?.toString() ??
         raw['creator_role']?.toString() ??
         _extractRoleFromObject(raw['created_by']),
-    status: raw['status']?.toString() ?? 'draft',
+    status: ReportStatus.parse(raw['status']),
+    statusLabel: ReportStatus.labelFromJson(raw),
     companyBackground: background,
     productVolumeMix: productItems
             ?.map((item) => ProductVolumeRow.fromJson(item))
@@ -268,7 +261,7 @@ Map<String, dynamic> buildDsrApiPayload({
   required CostData costData,
   required List<PerformanceRow> deliveryPerformance,
   required ProcessExcellence processExcellence,
-  required String status,
+  required Object? status,
 }) {
   final companyName = companyBackground.companyName.trim().isEmpty
       ? 'Diagnostic Study'
@@ -287,6 +280,7 @@ Map<String, dynamic> buildDsrApiPayload({
     'report_date': dsrFormatDate(companyBackground.reportDate),
     'analysis_period_from': dsrFormatDate(companyBackground.analysisPeriodFrom),
     'analysis_period_to': dsrFormatDate(companyBackground.analysisPeriodTo),
+    'total_workforce': apiTotalWorkforce(companyBackground.totalWorkforce),
   };
 
   final processPayload = processExcellence.toJson()
@@ -295,7 +289,7 @@ Map<String, dynamic> buildDsrApiPayload({
   return {
     'company_id': companyBackground.companyId,
     'title': '$companyName Diagnostic Study',
-    'status': ReportStatusMapper.toApi(status),
+    'status': ReportStatus.toApi(status),
     'company_background': {'details': background},
     'product_volume_mix': {
       'details': {

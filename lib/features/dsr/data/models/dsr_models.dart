@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/constants/report_status.dart';
+
 class DsrQueryParams {
   const DsrQueryParams({
     this.page = 1,
@@ -27,7 +29,7 @@ class DsrQueryParams {
   final String? reportDateTo;
   final String? periodFrom;
   final String? periodTo;
-  final String? status;
+  final int? status;
 
   Map<String, dynamic> toQueryParameters() => {
         'page': page,
@@ -718,6 +720,7 @@ class DiagnosticStudyRecord extends Equatable {
   const DiagnosticStudyRecord({
     required this.id,
     required this.status,
+    this.statusLabel = '',
     this.companyId,
     this.companyName,
     this.title,
@@ -743,7 +746,8 @@ class DiagnosticStudyRecord extends Equatable {
   });
 
   final String id;
-  final String status;
+  final int status;
+  final String statusLabel;
   final String? companyId;
   final String? companyName;
   final String? title;
@@ -772,10 +776,14 @@ class DiagnosticStudyRecord extends Equatable {
     return name.isEmpty ? 'Untitled study' : name;
   }
 
+  String get displayStatus =>
+      statusLabel.trim().isNotEmpty ? statusLabel.trim() : ReportStatus.labelOf(status);
+
   @override
   List<Object?> get props => [
         id,
         status,
+        statusLabel,
         companyId,
         companyName,
         title,

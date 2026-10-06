@@ -26,7 +26,7 @@ class DsrRepository with ApiGetHelper {
         '/diagnostic-studies',
         queryParameters: _query({
           ...query.toQueryParameters(),
-          'status': ReportStatusMapper.toApiFilter(query.status),
+          'status': ReportStatus.toApiFilter(query.status),
         }),
       );
       final envelope = _require(response, fallbackMessage: 'Failed to load studies');

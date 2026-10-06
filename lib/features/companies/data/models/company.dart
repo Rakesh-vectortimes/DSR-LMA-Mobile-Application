@@ -3,6 +3,9 @@ import 'package:equatable/equatable.dart';
 import '../../../../core/network/list_response.dart';
 import '../../../../core/permissions/record_permissions.dart';
 
+/// API requires `total_workforce >= 1`. Company picker no longer collects it.
+int apiTotalWorkforce(int? value) => (value != null && value >= 1) ? value : 1;
+
 /// Report-target company used by DSR and LMA forms.
 class Company extends Equatable {
   const Company({
@@ -106,7 +109,7 @@ class Company extends Equatable {
         'company_name': companyName,
         'location': location,
         'company_introduction': companyIntroduction,
-        'total_workforce': totalWorkforce ?? 0,
+        'total_workforce': apiTotalWorkforce(totalWorkforce),
         'shift_operation': _shiftAsNumber(shiftOperation),
         'working_hours': workingHours ?? '',
         'working_days': workingDays ?? 0,
@@ -203,7 +206,7 @@ class CompanyFormValues {
         'company_name': companyName.trim(),
         'location': location.trim(),
         'company_introduction': companyIntroduction,
-        'total_workforce': totalWorkforce ?? 0,
+        'total_workforce': apiTotalWorkforce(totalWorkforce),
         'shift_operation': Company._shiftAsNumber(shiftOperation),
         'working_hours': workingHours,
         'working_days': workingDays ?? 0,

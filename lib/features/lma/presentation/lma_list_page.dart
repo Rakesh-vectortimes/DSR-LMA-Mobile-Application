@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/constants/crm_conversion_type.dart';
+import '../../../core/constants/report_status.dart';
 import '../../../core/export/export_filename.dart';
 import '../../../core/export/export_share.dart';
 import '../../../core/export/typography_controller.dart';
@@ -10,11 +12,13 @@ import '../../../core/router/app_routes.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/report_export_buttons.dart';
 import '../../auth/presentation/auth_controller.dart';
+import '../../companies/data/company_repository.dart';
+import '../../companies/data/crm_repository.dart';
+import '../../companies/data/models/converted_company.dart';
 import '../../companies/data/models/organization.dart';
 import '../../companies/data/organization_repository.dart';
 import '../data/lma_assessment_repository.dart';
 import '../data/models/lma_assessment_models.dart';
-import '../domain/lma_api_mapper.dart';
 import 'lma_config_controller.dart';
 
 class LmaListPage extends ConsumerStatefulWidget {
@@ -30,17 +34,16 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
   final _toController = TextEditingController();
 
   final List<int> _limitOptions = const [5, 10, 25, 50];
-  final List<String> _statusOptions = const ['all', 'draft', 'submitted', 'archived'];
 
   List<LeanMaturityAssessmentRecord> _records = const [];
   List<OrganizationCreator> _creators = const [];
-  List<OrgCompany> _orgCompanies = const [];
+  List<ConvertedCompany> _convertedCompanies = const [];
   int _page = 1;
   int _limit = 10;
   int _pages = 1;
   int _total = 0;
-  String _status = 'all';
-  String _orgCompanyId = '';
+  int? _status;
+  String _convertedCompanyName = '';
   String _createdBy = '';
   DateTime? _fromDate;
   DateTime? _toDate;
@@ -48,6 +51,24 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
   bool _filtersExpanded = true;
   String? _error;
   String? _exportingId;
+
+  String? get _selectedConvertedCompanyId {
+    if (_convertedCompanyName.isEmpty) return null;
+    for (final company in _convertedCompanies) {
+      if (company.companyName == _convertedCompanyName &&
+          company.resolvedCompanyId.isNotEmpty) {
+        return company.resolvedCompanyId;
+      }
+    }
+    return null;
+  }
+
+  String? get _convertedCompanySearchFallback {
+    if (_convertedCompanyName.isEmpty || _selectedConvertedCompanyId != null) {
+      return null;
+    }
+    return _convertedCompanyName;
+  }
 
   @override
   void initState() {
@@ -69,27 +90,25 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
   }
 
   Future<void> _loadOrgFilters() async {
-    final auth = ref.read(authControllerProvider);
-    final repo = ref.read(organizationRepositoryProvider);
-
     try {
-      if (auth.showCompanyOrganizationFilter) {
-        final parent = await repo.getCurrentParentCompany();
-        final children = await repo.listChildCompanies(limit: 100);
-        _orgCompanies = [parent, ...children];
+      _convertedCompanies = await ref.read(crmRepositoryProvider).listConvertedCompaniesResolved(
+            convertedTo: CrmConversionType.lma,
+            companyRepository: ref.read(companyRepositoryProvider),
+          );
+      if (_convertedCompanyName.isNotEmpty &&
+          !_convertedCompanies.any((company) => company.companyName == _convertedCompanyName)) {
+        _convertedCompanyName = '';
       }
     } catch (_) {
-      _orgCompanies = const [];
+      _convertedCompanies = const [];
     }
-
+    if (mounted) setState(() {});
     await _loadCreators();
   }
 
   Future<void> _loadCreators() async {
     try {
-      final creators = await ref
-          .read(organizationRepositoryProvider)
-          .getCreators(orgCompanyId: _orgCompanyId.isEmpty ? null : _orgCompanyId);
+      final creators = await ref.read(organizationRepositoryProvider).getCreators();
       setState(() {
         _creators = creators.items;
         if (_createdBy.isNotEmpty &&
@@ -114,16 +133,16 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
               page: _page,
               limit: _limit,
               search: _searchController.text.trim().isEmpty
-                  ? null
+                  ? _convertedCompanySearchFallback
                   : _searchController.text.trim(),
-              orgCompanyId: _orgCompanyId.isEmpty ? null : _orgCompanyId,
+              companyId: _selectedConvertedCompanyId,
               createdBy: _createdBy.isEmpty ? null : _createdBy,
               reportDateFrom: _fromDate == null
                   ? null
                   : DateFormat('yyyy-MM-dd').format(_fromDate!),
               reportDateTo:
                   _toDate == null ? null : DateFormat('yyyy-MM-dd').format(_toDate!),
-              status: mapLmaStatusFilterToApi(_status),
+              status: _status,
             ),
           );
       if (!mounted) return;
@@ -297,49 +316,47 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
                 },
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
+              DropdownButtonFormField<int?>(
                 value: _status,
                 decoration: const InputDecoration(labelText: 'Status'),
-                items: _statusOptions
-                    .map(
-                      (value) => DropdownMenuItem(
-                        value: value,
-                        child: Text(value == 'all' ? 'All' : lmaStatusLabel(value)),
-                      ),
-                    )
-                    .toList(),
+                items: [
+                  const DropdownMenuItem<int?>(value: null, child: Text('All')),
+                  ...ReportStatus.values.map(
+                    (value) => DropdownMenuItem<int?>(
+                      value: value,
+                      child: Text(ReportStatus.labels[value]!),
+                    ),
+                  ),
+                ],
                 onChanged: (value) async {
                   setState(() {
-                    _status = value ?? 'all';
+                    _status = value;
                     _page = 1;
                   });
                   await _loadRecords();
                 },
               ),
-              if (auth.showCompanyOrganizationFilter) ...[
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: _orgCompanyId.isEmpty ? '' : _orgCompanyId,
-                  decoration: const InputDecoration(labelText: 'Organization'),
-                  items: [
-                    const DropdownMenuItem(value: '', child: Text('All')),
-                    ..._orgCompanies.map(
-                      (company) => DropdownMenuItem(
-                        value: company.id,
-                        child: Text(company.companyName),
-                      ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _convertedCompanyName.isEmpty ? '' : _convertedCompanyName,
+                decoration: const InputDecoration(labelText: 'Organization'),
+                items: [
+                  const DropdownMenuItem(value: '', child: Text('All')),
+                  ..._convertedCompanies.map(
+                    (company) => DropdownMenuItem(
+                      value: company.companyName,
+                      child: Text(company.companyName),
                     ),
-                  ],
-                  onChanged: (value) async {
-                    setState(() {
-                      _orgCompanyId = value ?? '';
-                      _page = 1;
-                    });
-                    await _loadCreators();
-                    await _loadRecords();
-                  },
-                ),
-              ],
+                  ),
+                ],
+                onChanged: (value) async {
+                  setState(() {
+                    _convertedCompanyName = value ?? '';
+                    _page = 1;
+                  });
+                  await _loadRecords();
+                },
+              ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: _createdBy.isEmpty ? '' : _createdBy,
@@ -417,8 +434,8 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
                     onPressed: () async {
                       setState(() {
                         _searchController.clear();
-                        _status = 'all';
-                        _orgCompanyId = '';
+                        _status = null;
+                        _convertedCompanyName = '';
                         _createdBy = '';
                         _fromDate = null;
                         _toDate = null;
@@ -475,7 +492,10 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                       ),
-                      _StatusChip(label: lmaStatusLabel(record.status)),
+                      _StatusChip(
+                        status: record.status,
+                        label: record.displayStatus,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -488,22 +508,24 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
                     runSpacing: 8,
                     children: [
                       if (auth.canEditRecord(
-                        createdByRole: record.createdByRole,
-                        createdBy: record.raw?['created_by'],
-                      ))
-                        OutlinedButton.icon(
+                            createdByRole: record.createdByRole,
+                            createdBy: record.raw?['created_by'],
+                          ) &&
+                          record.status != ReportStatus.published)
+                        IconButton.outlined(
+                          tooltip: 'Edit',
                           onPressed: () => context.go(AppRoutes.lmaEdit(record.id)),
                           icon: const Icon(Icons.edit_outlined),
-                          label: const Text('Edit'),
                         ),
                       if (auth.canViewReports)
-                        OutlinedButton.icon(
+                        IconButton.outlined(
+                          tooltip: 'Preview',
                           onPressed: () => context.go(AppRoutes.lmaPreview(record.id)),
                           icon: const Icon(Icons.visibility_outlined),
-                          label: const Text('Preview'),
                         ),
                       if (auth.canViewReports)
                         ReportExportButtons(
+                          iconOnly: true,
                           loading: _exportingId?.startsWith(record.id) == true,
                           onPdf: () => _export(record, ExportKind.pdf),
                           onWord: () => _export(record, ExportKind.word),
@@ -512,10 +534,10 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
                         createdByRole: record.createdByRole,
                         createdBy: record.raw?['created_by'],
                       ))
-                        OutlinedButton.icon(
+                        IconButton.outlined(
+                          tooltip: 'Delete',
                           onPressed: () => _deleteRecord(record),
                           icon: const Icon(Icons.delete_outline),
-                          label: const Text('Delete'),
                         ),
                     ],
                   ),
@@ -587,16 +609,16 @@ class _MetaLine extends StatelessWidget {
 }
 
 class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.label});
+  const _StatusChip({required this.status, required this.label});
 
+  final int status;
   final String label;
 
   @override
   Widget build(BuildContext context) {
-    final normalized = label.toLowerCase();
-    final color = normalized == 'published'
+    final color = status == ReportStatus.published
         ? AppColors.success
-        : normalized == 'archived'
+        : status == ReportStatus.archived
             ? AppColors.warning
             : AppColors.secondary;
     return Container(

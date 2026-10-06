@@ -18,6 +18,7 @@ void main() {
       expect(payload['location'], 'Chennai');
       expect(payload['currency'], 'INR');
       expect(payload['status'], 'active');
+      expect(payload['total_workforce'], 1);
     });
   });
 

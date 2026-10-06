@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 
+import '../../../../core/constants/report_status.dart';
 import '../../../../core/network/list_response.dart';
 import '../../companies/data/models/company.dart';
 import '../data/models/lma_assessment_models.dart';
@@ -23,44 +24,8 @@ Map<String, dynamic>? sectionDetails(Object? section) {
   return null;
 }
 
-String mapLmaStatusToApi(String? status) {
-  final normalized = (status ?? '').trim().toLowerCase();
-  if (normalized == 'submitted' || normalized == 'published') {
-    return 'published';
-  }
-  return 'draft';
-}
-
-/// UI `submitted` ↔ API `published` (matches web [mapStatusToUi]).
-String mapLmaStatusToUi(String? status) {
-  final normalized = (status ?? '').trim().toLowerCase();
-  if (normalized == 'published') return 'submitted';
-  if (normalized == 'draft' ||
-      normalized == 'archived' ||
-      normalized == 'completed') {
-    return normalized;
-  }
-  return 'draft';
-}
-
-String mapLmaStatusFilterToApi(String? status) {
-  final normalized = (status ?? '').trim().toLowerCase();
-  if (normalized.isEmpty || normalized == 'all') return '';
-  if (normalized == 'submitted') return 'published';
-  return normalized;
-}
-
-String lmaStatusLabel(String? apiStatus) {
-  final status = (apiStatus ?? '').trim().toLowerCase();
-  switch (status) {
-    case 'published':
-      return 'Published';
-    case 'archived':
-      return 'Archived';
-    case 'draft':
-    default:
-      return 'Draft';
-  }
+String lmaStatusLabel(Object? apiStatus, {String? statusLabel}) {
+  return ReportStatus.labelOf(apiStatus, statusLabel: statusLabel);
 }
 
 String formatApiDate(Object? value) {
@@ -153,7 +118,7 @@ Map<String, dynamic> buildLmaApiPayload({
   required CompanyFormValues company,
   required List<LeanMaturityResponse> responses,
   required List<LeanMaturityQuestion> questions,
-  required String status,
+  required Object? status,
   required Object? reportDate,
 }) {
   final companyName = company.companyName.trim().isEmpty
@@ -166,14 +131,14 @@ Map<String, dynamic> buildLmaApiPayload({
     'title': '$companyName Lean Maturity Assessment',
     'company_name': companyName,
     'report_date': formatApiDate(reportDate),
-    'status': mapLmaStatusToApi(status),
+    'status': ReportStatus.toApi(status),
     'company_background': {
       'details': {
         'company_id': company.companyId,
         'company_name': companyName,
         'company_introduction': company.companyIntroduction,
         'location': company.location,
-        'total_workforce': company.totalWorkforce,
+        'total_workforce': apiTotalWorkforce(company.totalWorkforce),
         'shift_operation': company.shiftOperation,
         'working_hours': company.workingHours,
         'working_days': company.workingDays,
@@ -234,7 +199,8 @@ LeanMaturityAssessmentRecord normalizeLmaRecord(
     createdByRole: raw['created_by_role']?.toString() ??
         raw['creator_role']?.toString() ??
         _extractRoleFromObject(raw['created_by']),
-    status: raw['status']?.toString() ?? 'draft',
+    status: ReportStatus.parse(raw['status']),
+    statusLabel: ReportStatus.labelFromJson(raw),
     companyBackground: companyBackground == null
         ? null
         : LmaCompanyBackground.fromJson(companyBackground),
@@ -260,7 +226,7 @@ Map<String, dynamic> lmaRecordToFormPatch(LeanMaturityAssessmentRecord record) {
     'currency': companyBackground?.currency ?? 'INR',
     'currency_symbol': companyBackground?.currencySymbol,
     'report_date': record.reportDate,
-    'status': mapLmaStatusToUi(record.status),
+    'status': ReportStatus.parse(record.status),
     'responses': record.responses,
   };
 }

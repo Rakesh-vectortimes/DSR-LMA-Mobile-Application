@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/report_status.dart';
 import '../../../core/export/export_filename.dart';
 import '../../../core/export/export_share.dart';
 import '../../../core/network/api_get_helper.dart';
@@ -23,7 +24,10 @@ class LmaAssessmentRepository with ApiGetHelper {
     try {
       final response = await dio.get<dynamic>(
         '/lean-maturity-assessments',
-        queryParameters: _query(query.toQueryParameters()),
+        queryParameters: _query({
+          ...query.toQueryParameters(),
+          'status': ReportStatus.toApiFilter(query.status),
+        }),
       );
       final envelope = _require(
         response,

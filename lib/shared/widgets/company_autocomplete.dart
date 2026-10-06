@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/companies/data/company_repository.dart';
+import '../../features/companies/data/crm_repository.dart';
 import '../../features/companies/data/models/company.dart';
 import '../../features/companies/data/models/country.dart';
 
@@ -17,12 +18,16 @@ class CompanyAutocompleteField extends ConsumerStatefulWidget {
     required this.onChanged,
     this.enabled = true,
     this.labelText = 'Company',
+    this.convertedTo,
   });
 
   final CompanyFormValues values;
   final ValueChanged<CompanyFormValues> onChanged;
   final bool enabled;
   final String labelText;
+
+  /// When set, options come from CRM deals converted to this type (4 = LMA, 5 = DSR).
+  final int? convertedTo;
 
   @override
   ConsumerState<CompanyAutocompleteField> createState() =>
@@ -111,15 +116,27 @@ class _CompanyAutocompleteFieldState extends ConsumerState<CompanyAutocompleteFi
     });
 
     try {
-      final repo = ref.read(companyRepositoryProvider);
-      final result = await repo.listPage(
-        page: 1,
-        limit: 100,
-        search: query.trim().isEmpty ? null : query.trim(),
-      );
+      final List<Company> resultItems;
+      if (widget.convertedTo != null) {
+        final converted = await ref.read(crmRepositoryProvider).listConvertedCompanies(
+              convertedTo: widget.convertedTo!,
+              search: query.trim().isEmpty ? null : query.trim(),
+            );
+        resultItems = converted
+            .map((item) => item.toCompanyOption())
+            .where((company) => company.companyName.trim().isNotEmpty)
+            .toList();
+      } else {
+        final result = await ref.read(companyRepositoryProvider).listPage(
+              page: 1,
+              limit: 100,
+              search: query.trim().isEmpty ? null : query.trim(),
+            );
+        resultItems = result.items;
+      }
       if (!mounted) return;
       setState(() {
-        _options = result.items;
+        _options = resultItems;
         _loading = false;
       });
       _refreshOptionsOverlay();
@@ -157,6 +174,7 @@ class _CompanyAutocompleteFieldState extends ConsumerState<CompanyAutocompleteFi
 
   Future<void> _selectCompany(Company company) async {
     _applyCompany(company);
+    if (company.id.trim().isEmpty) return;
     try {
       final full = await ref.read(companyRepositoryProvider).getById(company.id);
       if (!mounted) return;
@@ -239,6 +257,10 @@ class _CompanyAutocompleteFieldState extends ConsumerState<CompanyAutocompleteFi
       return;
     }
 
+    if (widget.convertedTo != null) {
+      return;
+    }
+
     final next = CompanyFormValues.fromCompany(
       Company(
         id: '',
@@ -272,6 +294,20 @@ class _CompanyAutocompleteFieldState extends ConsumerState<CompanyAutocompleteFi
     );
   }
 
+  String? _validateSelection() {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) return 'Select a company';
+    if (widget.convertedTo == null) return null;
+    final matchesOption = _options.any(
+      (company) => company.displayName.toLowerCase() == name.toLowerCase(),
+    );
+    if (matchesOption) return null;
+    if (widget.values.companyName.trim().toLowerCase() == name.toLowerCase()) {
+      return null;
+    }
+    return 'Select a company from the list';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -296,7 +332,9 @@ class _CompanyAutocompleteFieldState extends ConsumerState<CompanyAutocompleteFi
                 enabled: widget.enabled,
                 decoration: InputDecoration(
                   labelText: widget.labelText,
-                  hintText: 'Select or type a company',
+                  hintText: widget.convertedTo == null
+                      ? 'Select or type a company'
+                      : 'Select a company',
                   prefixIcon: const Icon(Icons.business_outlined),
                   suffixIcon: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -320,6 +358,7 @@ class _CompanyAutocompleteFieldState extends ConsumerState<CompanyAutocompleteFi
                 ),
                 onChanged: _onNameChanged,
                 onFieldSubmitted: (_) => onFieldSubmitted(),
+                validator: (_) => _validateSelection(),
               ),
             );
           },

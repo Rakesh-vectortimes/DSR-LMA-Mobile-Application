@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/constants/crm_conversion_type.dart';
+import '../../../core/constants/report_status.dart';
 import '../../../core/export/export_filename.dart';
 import '../../../core/export/export_share.dart';
 import '../../../core/export/typography_controller.dart';
@@ -10,7 +12,7 @@ import '../../../core/router/app_routes.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../features/auth/presentation/auth_controller.dart';
 import '../../../shared/widgets/company_autocomplete.dart';
-import '../../../shared/widgets/report_export_buttons.dart';
+import '../../../shared/widgets/form_wizard_scaffold.dart';
 import '../../companies/data/company_repository.dart';
 import '../../companies/data/models/company.dart';
 import '../data/lma_assessment_repository.dart';
@@ -35,18 +37,11 @@ class LmaFormPage extends ConsumerStatefulWidget {
 
 class _LmaFormPageState extends ConsumerState<LmaFormPage> {
   final _detailsFormKey = GlobalKey<FormState>();
-  final _introController = TextEditingController();
-  final _locationController = TextEditingController();
-  final _workforceController = TextEditingController();
-  final _shiftController = TextEditingController();
-  final _hoursController = TextEditingController();
-  final _daysController = TextEditingController();
-  final _currencyController = TextEditingController(text: 'INR');
 
   CompanyFormValues _company = CompanyFormValues(currency: 'INR');
   DateTime _reportDate = DateTime.now();
   int _currentStep = 0;
-  String _status = 'draft';
+  int _status = ReportStatus.draft;
   bool _loading = true;
   bool _saving = false;
   bool _exporting = false;
@@ -59,18 +54,6 @@ class _LmaFormPageState extends ConsumerState<LmaFormPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _initialize());
-  }
-
-  @override
-  void dispose() {
-    _introController.dispose();
-    _locationController.dispose();
-    _workforceController.dispose();
-    _shiftController.dispose();
-    _hoursController.dispose();
-    _daysController.dispose();
-    _currencyController.dispose();
-    super.dispose();
   }
 
   Future<void> _initialize() async {
@@ -158,15 +141,8 @@ class _LmaFormPageState extends ConsumerState<LmaFormPage> {
       currencySymbol: bg?.currencySymbol,
       status: 'active',
     );
-    _introController.text = _company.companyIntroduction;
-    _locationController.text = _company.location;
-    _workforceController.text = _company.totalWorkforce?.toString() ?? '';
-    _shiftController.text = _company.shiftOperation?.toString() ?? '';
-    _hoursController.text = _company.workingHours;
-    _daysController.text = _company.workingDays?.toString() ?? '';
-    _currencyController.text = _company.currency;
     _reportDate = _parseDate(record.reportDate) ?? DateTime.now();
-    _status = mapLmaStatusToUi(record.status);
+    _status = ReportStatus.parse(record.status);
 
     final existing = {
       for (final response in record.responses) response.questionId: response,
@@ -187,15 +163,7 @@ class _LmaFormPageState extends ConsumerState<LmaFormPage> {
   }
 
   void _syncCompanyFields(CompanyFormValues values) {
-    _company = values;
-    _introController.text = values.companyIntroduction;
-    _locationController.text = values.location;
-    _workforceController.text = values.totalWorkforce?.toString() ?? '';
-    _shiftController.text = values.shiftOperation?.toString() ?? '';
-    _hoursController.text = values.workingHours;
-    _daysController.text = values.workingDays?.toString() ?? '';
-    _currencyController.text = values.currency;
-    setState(() {});
+    setState(() => _company = values);
   }
 
   Future<void> _pickReportDate() async {
@@ -233,7 +201,7 @@ class _LmaFormPageState extends ConsumerState<LmaFormPage> {
   }
 
   Future<void> _saveDraft() async {
-    _status = 'draft';
+    _status = ReportStatus.draft;
     await _save();
   }
 
@@ -249,7 +217,7 @@ class _LmaFormPageState extends ConsumerState<LmaFormPage> {
       );
       return;
     }
-    _status = 'submitted';
+    _status = ReportStatus.published;
     await _save();
   }
 
@@ -285,7 +253,7 @@ class _LmaFormPageState extends ConsumerState<LmaFormPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            _status == 'submitted'
+            _status == ReportStatus.published
                 ? 'Assessment submitted successfully.'
                 : _isEdit
                     ? 'Assessment updated successfully.'
@@ -388,92 +356,82 @@ class _LmaFormPageState extends ConsumerState<LmaFormPage> {
   Widget build(BuildContext context) {
     final config = ref.watch(lmaConfigControllerProvider);
     final auth = ref.watch(authControllerProvider);
+    final title = _isEdit ? 'Edit LMA' : 'New LMA';
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEdit ? 'Edit LMA' : 'New LMA'),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(child: Text(_error!))
-              : !config.canCreateAssessment
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(config.errorMessage ?? 'LMA configuration unavailable.'),
-                      ),
-                    )
-                  : Stepper(
-                      currentStep: _currentStep,
-                      onStepContinue: _currentStep == config.categories.length + 1
-                          ? null
-                          : _nextStep,
-                      onStepCancel: _cancelStep,
-                      controlsBuilder: (context, details) {
-                        final lastStep = _currentStep == config.categories.length + 1;
-                        return Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: [
-                            if (!lastStep)
-                              FilledButton(
-                                onPressed: _saving ? null : details.onStepContinue,
-                                child: const Text('Next'),
-                              ),
-                            if (_currentStep > 0)
-                              OutlinedButton(
-                                onPressed: _saving ? null : details.onStepCancel,
-                                child: const Text('Back'),
-                              ),
-                            if (auth.canWriteReports)
-                              OutlinedButton(
-                                onPressed: _saving
-                                    ? null
-                                    : (_isEdit ? _updateRecord : _saveDraft),
-                                child: Text(_isEdit ? 'Update' : 'Save Draft'),
-                              ),
-                            if (auth.canWriteReports)
-                              FilledButton(
-                                onPressed: _saving ? null : _submitFinal,
-                                child: _saving
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      )
-                                    : const Text('Submit Final'),
-                              ),
-                            if (_isEdit)
-                              ReportExportButtons(
-                                enabled: !_saving,
-                                loading: _exporting,
-                                onPdf: () => _export(ExportKind.pdf),
-                                onWord: () => _export(ExportKind.word),
-                              ),
-                          ],
-                        );
-                      },
-                      steps: [
-                        Step(
-                          title: const Text('Company'),
-                          isActive: _currentStep >= 0,
-                          content: _buildCompanyStep(),
-                        ),
-                        ...config.categories.map(
-                          (category) => Step(
-                            title: Text(categoryStepLabel(category)),
-                            isActive: _currentStep >= config.categories.indexOf(category) + 1,
-                            content: _buildCategoryStep(category),
-                          ),
-                        ),
-                        Step(
-                          title: const Text('Preview'),
-                          isActive: _currentStep >= config.categories.length + 1,
-                          content: _buildPreview(config),
-                        ),
-                      ],
-                    ),
+    if (_loading) {
+      return Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_error != null) {
+      return Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: Center(child: Text(_error!)),
+      );
+    }
+    if (!config.canCreateAssessment) {
+      return Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(config.errorMessage ?? 'LMA configuration unavailable.'),
+          ),
+        ),
+      );
+    }
+
+    final stepCount = config.categories.length + 2;
+    final lastStep = _currentStep >= stepCount - 1;
+    final stepTitle = _currentStep == 0
+        ? 'Company'
+        : _currentStep <= config.categories.length
+            ? categoryStepLabel(config.categories[_currentStep - 1])
+            : 'Preview';
+    final stepBody = _currentStep == 0
+        ? _buildCompanyStep()
+        : _currentStep <= config.categories.length
+            ? _buildCategoryStep(config.categories[_currentStep - 1])
+            : _buildPreview(config);
+
+    return FormWizardScaffold(
+      title: title,
+      stepIndex: _currentStep,
+      stepCount: stepCount,
+      stepTitle: stepTitle,
+      body: stepBody,
+      header: _currentStep > 0 && _currentStep <= config.categories.length
+          ? _buildCategoryScoreHeader(config.categories[_currentStep - 1])
+          : null,
+      saving: _saving,
+      saveLabel: _isEdit ? 'Update' : 'Save',
+      nextLabel: lastStep ? 'Submit Final' : 'Next',
+      onSave: auth.canWriteReports
+          ? (_isEdit ? _updateRecord : _saveDraft)
+          : null,
+      onNext: lastStep ? _submitFinal : _nextStep,
+      onStepBack: _cancelStep,
+      actions: [
+        if (_isEdit)
+          IconButton(
+            tooltip: 'Export PDF',
+            onPressed: _saving || _exporting ? null : () => _export(ExportKind.pdf),
+            icon: _exporting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.picture_as_pdf_outlined),
+          ),
+        if (_isEdit)
+          IconButton(
+            tooltip: 'Export Word',
+            onPressed: _saving || _exporting ? null : () => _export(ExportKind.word),
+            icon: const Icon(Icons.description_outlined),
+          ),
+      ],
     );
   }
 
@@ -485,56 +443,8 @@ class _LmaFormPageState extends ConsumerState<LmaFormPage> {
         children: [
           CompanyAutocompleteField(
             values: _company,
-            onChanged: (values) {
-              _company = values;
-              _syncCompanyFields(values);
-            },
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _introController,
-            maxLines: 4,
-            decoration: const InputDecoration(labelText: 'Company introduction'),
-            onChanged: (value) => _company.companyIntroduction = value,
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _locationController,
-            decoration: const InputDecoration(labelText: 'Location'),
-            onChanged: (value) => _company.location = value,
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _workforceController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Total workforce'),
-            onChanged: (value) => _company.totalWorkforce = int.tryParse(value),
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _shiftController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Shift operation'),
-            onChanged: (value) => _company.shiftOperation = num.tryParse(value) ?? value,
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _hoursController,
-            decoration: const InputDecoration(labelText: 'Working hours'),
-            onChanged: (value) => _company.workingHours = value,
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _daysController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Working days'),
-            onChanged: (value) => _company.workingDays = int.tryParse(value) ?? value,
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _currencyController,
-            decoration: const InputDecoration(labelText: 'Currency'),
-            onChanged: (value) => _company.currency = value.isEmpty ? 'INR' : value,
+            convertedTo: CrmConversionType.lma,
+            onChanged: _syncCompanyFields,
           ),
           const SizedBox(height: 14),
           InkWell(
@@ -542,23 +452,17 @@ class _LmaFormPageState extends ConsumerState<LmaFormPage> {
             child: InputDecorator(
               decoration: const InputDecoration(
                 labelText: 'Report date',
-                prefixIcon: Icon(Icons.calendar_today_outlined),
+                suffixIcon: Icon(Icons.calendar_today_outlined),
               ),
-              child: Text(DateFormat('yyyy-MM-dd').format(_reportDate)),
+              child: Text(DateFormat('d MMM yyyy').format(_reportDate)),
             ),
           ),
-          const SizedBox(height: 8),
-          if (_company.companyName.trim().isEmpty)
-            const Text(
-              'Company name is required.',
-              style: TextStyle(color: AppColors.error, fontSize: 12),
-            ),
         ],
       ),
     );
   }
 
-  Widget _buildCategoryStep(String category) {
+  Widget _buildCategoryScoreHeader(String category) {
     final config = ref.read(lmaConfigControllerProvider);
     final questions = config.questionsForCategory(category);
     final scores = config.calculateScores(_responses);
@@ -567,28 +471,72 @@ class _LmaFormPageState extends ConsumerState<LmaFormPage> {
         .cast<LeanMaturityCategoryScore?>()
         .firstWhere((_) => true, orElse: () => null);
 
+    final maxScore = (entry?.maxScore ?? 0) > 0
+        ? entry!.maxScore
+        : questions.fold(0, (sum, question) => sum + questionMaxScore(question));
+    final totalScore = entry?.totalScore ?? 0;
+    final percentage = entry?.percentage ??
+        (maxScore > 0 ? ((totalScore / maxScore) * 100).round() : 0);
+    final grade = (entry?.grade ?? '').trim();
+    final answered = entry?.answeredCount ?? 0;
+    final total = (entry?.totalCount ?? 0) > 0
+        ? entry!.totalCount
+        : questions.length;
+    final scoreStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: AppColors.primaryDark,
+          fontWeight: FontWeight.w700,
+        );
+    final metaStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: AppColors.primaryDark,
+          fontWeight: FontWeight.w600,
+        );
+
+    return Material(
+      color: AppColors.primary.withValues(alpha: 0.12),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                category,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primaryDark,
+                    ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 10,
+                runSpacing: 2,
+                children: [
+                  Text('$totalScore / $maxScore', style: scoreStyle),
+                  Text(
+                    grade.isEmpty ? '$percentage%' : '$grade ($percentage%)',
+                    style: metaStyle,
+                  ),
+                  Text('$answered / $total answered', style: metaStyle),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryStep(String category) {
+    final config = ref.read(lmaConfigControllerProvider);
+    final questions = config.questionsForCategory(category);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(category, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 4),
-              Text(
-                '${entry?.totalScore ?? 0} / ${entry?.maxScore ?? 0}   ${entry?.grade ?? ''} (${entry?.percentage ?? 0}%)',
-              ),
-              Text('${entry?.answeredCount ?? 0} / ${entry?.totalCount ?? questions.length} answered'),
-            ],
-          ),
-        ),
         ...questions.map(
           (question) {
             final response = _responses
@@ -651,7 +599,7 @@ class _LmaFormPageState extends ConsumerState<LmaFormPage> {
                 ),
                 const SizedBox(height: 8),
                 Text('Report date: ${DateFormat('yyyy-MM-dd').format(_reportDate)}'),
-                Text('Status: ${lmaStatusLabel(mapLmaStatusToApi(_status))}'),
+                Text('Status: ${ReportStatus.labelOf(_status)}'),
               ],
             ),
           ),

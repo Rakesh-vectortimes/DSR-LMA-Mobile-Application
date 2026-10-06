@@ -39,7 +39,7 @@ abstract final class AppTheme {
         elevation: 0,
         centerTitle: false,
       ),
-      tabBarTheme: const TabBarTheme(
+      tabBarTheme: const TabBarThemeData(
         labelColor: AppColors.onPrimary,
         unselectedLabelColor: Color(0xCCFFFFFF),
         indicatorColor: AppColors.onPrimary,
@@ -47,7 +47,7 @@ abstract final class AppTheme {
         labelStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: AppColors.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
