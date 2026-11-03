@@ -59,10 +59,17 @@ class FormWizardScaffold extends StatelessWidget {
           ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(title),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               Text(
                 'Step ${stepIndex + 1}/$_total: $stepTitle',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w400,
@@ -91,9 +98,15 @@ class FormWizardScaffold extends StatelessWidget {
                   child: Row(
                     children: [
                       if (onSave != null) ...[
-                        OutlinedButton(
-                          onPressed: saving ? null : onSave,
-                          child: Text(saveLabel),
+                        Flexible(
+                          child: OutlinedButton(
+                            onPressed: saving ? null : onSave,
+                            child: Text(
+                              saveLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 12),
                       ],

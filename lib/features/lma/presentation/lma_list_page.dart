@@ -9,14 +9,15 @@ import '../../../core/export/export_filename.dart';
 import '../../../core/export/export_share.dart';
 import '../../../core/export/typography_controller.dart';
 import '../../../core/router/app_routes.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../shared/widgets/report_export_buttons.dart';
+import '../../../shared/widgets/report_filter_sheet.dart';
+import '../../../shared/widgets/report_record_widgets.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../companies/data/company_repository.dart';
 import '../../companies/data/crm_repository.dart';
 import '../../companies/data/models/converted_company.dart';
 import '../../companies/data/models/organization.dart';
 import '../../companies/data/organization_repository.dart';
+import '../../home/presentation/report_nav.dart';
 import '../data/lma_assessment_repository.dart';
 import '../data/models/lma_assessment_models.dart';
 import 'lma_config_controller.dart';
@@ -30,9 +31,6 @@ class LmaListPage extends ConsumerStatefulWidget {
 
 class _LmaListPageState extends ConsumerState<LmaListPage> {
   final _searchController = TextEditingController();
-  final _fromController = TextEditingController();
-  final _toController = TextEditingController();
-
   final List<int> _limitOptions = const [5, 10, 25, 50];
 
   List<LeanMaturityAssessmentRecord> _records = const [];
@@ -48,9 +46,10 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
   DateTime? _fromDate;
   DateTime? _toDate;
   bool _loading = true;
-  bool _filtersExpanded = true;
   String? _error;
   String? _exportingId;
+  int _appliedNavToken = 0;
+  int _loadGeneration = 0;
 
   String? get _selectedConvertedCompanyId {
     if (_convertedCompanyName.isEmpty) return null;
@@ -70,18 +69,46 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
     return _convertedCompanyName;
   }
 
+  List<String> get _companyNames {
+    final names = <String>{};
+    for (final company in _convertedCompanies) {
+      if (company.companyName.trim().isNotEmpty) names.add(company.companyName);
+    }
+    return names.toList();
+  }
+
+  String get _statusChipLabel {
+    final name =
+        _status == null ? 'All' : (ReportStatus.labels[_status] ?? 'All');
+    return '$name ($_total)';
+  }
+
   @override
   void initState() {
     super.initState();
+    _takeIncomingRequest();
     WidgetsBinding.instance.addPostFrameCallback((_) => _initialize());
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _fromController.dispose();
-    _toController.dispose();
     super.dispose();
+  }
+
+  bool _takeIncomingRequest() {
+    final request = ref.read(reportNavProvider).lma;
+    if (request == null || request.token == _appliedNavToken) return false;
+    _appliedNavToken = request.token;
+    _status = request.status;
+    _page = 1;
+    _searchController.clear();
+    _convertedCompanyName = '';
+    _createdBy = '';
+    _fromDate = null;
+    _toDate = null;
+    _limit = 10;
+    return true;
   }
 
   Future<void> _initialize() async {
@@ -91,12 +118,14 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
 
   Future<void> _loadOrgFilters() async {
     try {
-      _convertedCompanies = await ref.read(crmRepositoryProvider).listConvertedCompaniesResolved(
-            convertedTo: CrmConversionType.lma,
-            companyRepository: ref.read(companyRepositoryProvider),
-          );
+      _convertedCompanies =
+          await ref.read(crmRepositoryProvider).listConvertedCompaniesResolved(
+                convertedTo: CrmConversionType.lma,
+                companyRepository: ref.read(companyRepositoryProvider),
+              );
       if (_convertedCompanyName.isNotEmpty &&
-          !_convertedCompanies.any((company) => company.companyName == _convertedCompanyName)) {
+          !_convertedCompanies
+              .any((company) => company.companyName == _convertedCompanyName)) {
         _convertedCompanyName = '';
       }
     } catch (_) {
@@ -108,7 +137,9 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
 
   Future<void> _loadCreators() async {
     try {
-      final creators = await ref.read(organizationRepositoryProvider).getCreators();
+      final creators =
+          await ref.read(organizationRepositoryProvider).getCreators();
+      if (!mounted) return;
       setState(() {
         _creators = creators.items;
         if (_createdBy.isNotEmpty &&
@@ -123,6 +154,7 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
   }
 
   Future<void> _loadRecords() async {
+    final generation = ++_loadGeneration;
     setState(() {
       _loading = true;
       _error = null;
@@ -140,12 +172,13 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
               reportDateFrom: _fromDate == null
                   ? null
                   : DateFormat('yyyy-MM-dd').format(_fromDate!),
-              reportDateTo:
-                  _toDate == null ? null : DateFormat('yyyy-MM-dd').format(_toDate!),
+              reportDateTo: _toDate == null
+                  ? null
+                  : DateFormat('yyyy-MM-dd').format(_toDate!),
               status: _status,
             ),
           );
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _records = result.items;
         _page = result.page;
@@ -155,7 +188,7 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _loading = false;
         _error = e.toString();
@@ -163,23 +196,30 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
     }
   }
 
-  Future<void> _pickDate({required bool from}) async {
-    final current = from ? _fromDate : _toDate;
-    final selected = await showDatePicker(
+  Future<void> _openFilters() async {
+    final result = await showReportFilterSheet(
       context: context,
-      initialDate: current ?? DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
+      initial: ReportFilterValues(
+        status: _status,
+        companyName: _convertedCompanyName,
+        createdBy: _createdBy,
+        from: _fromDate,
+        to: _toDate,
+        limit: _limit,
+      ),
+      companies: _companyNames,
+      creators: _creators,
+      dateLabel: 'Report date',
+      limitOptions: _limitOptions,
     );
-    if (selected == null) return;
+    if (result == null || !mounted) return;
     setState(() {
-      if (from) {
-        _fromDate = selected;
-        _fromController.text = DateFormat('yyyy-MM-dd').format(selected);
-      } else {
-        _toDate = selected;
-        _toController.text = DateFormat('yyyy-MM-dd').format(selected);
-      }
+      _status = result.status;
+      _convertedCompanyName = result.companyName;
+      _createdBy = result.createdBy;
+      _fromDate = result.from;
+      _toDate = result.to;
+      _limit = result.limit;
       _page = 1;
     });
     await _loadRecords();
@@ -190,7 +230,8 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete assessment'),
-        content: Text('Delete lean maturity assessment for "${record.displayCompanyName}"?'),
+        content: Text(
+            'Delete lean maturity assessment for "${record.displayCompanyName}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -220,35 +261,61 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
     }
   }
 
-  Future<void> _export(LeanMaturityAssessmentRecord record, ExportKind kind) async {
+  Future<void> _export(
+      LeanMaturityAssessmentRecord record, ExportKind kind) async {
     if (record.id.isEmpty) return;
     setState(() => _exportingId = '${record.id}-${kind.extension}');
     await exportAndShare(
       ref: ref,
       context: context,
-      preparingMessage: kind == ExportKind.pdf ? 'Preparing PDF report...' : 'Preparing Word report...',
+      preparingMessage: kind == ExportKind.pdf
+          ? 'Preparing PDF report...'
+          : 'Preparing Word report...',
       download: () {
         final typography = ref.read(typographyControllerProvider);
         final repo = ref.read(lmaAssessmentRepositoryProvider);
         return kind == ExportKind.pdf
             ? repo.exportPdf(record.id, record: record, typography: typography)
-            : repo.exportWord(record.id, record: record, typography: typography);
+            : repo.exportWord(record.id,
+                record: record, typography: typography);
       },
     );
     if (mounted) setState(() => _exportingId = null);
   }
 
+  void _onMenu(LeanMaturityAssessmentRecord record, String action) {
+    switch (action) {
+      case 'preview':
+        context.go(AppRoutes.lmaPreview(record.id));
+      case 'edit':
+        context.go(AppRoutes.lmaEdit(record.id));
+      case 'pdf':
+        _export(record, ExportKind.pdf);
+      case 'word':
+        _export(record, ExportKind.word);
+      case 'delete':
+        _deleteRecord(record);
+      default:
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen(reportNavProvider, (previous, next) {
+      if (!_takeIncomingRequest()) return;
+      _loadRecords();
+    });
+
     final auth = ref.watch(authControllerProvider);
     final config = ref.watch(lmaConfigControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('LMA'),
-      ),
+      appBar: AppBar(title: const Text('LMA')),
       floatingActionButton: auth.canCreateReports
           ? FloatingActionButton.extended(
+              backgroundColor: const Color(0xFF7DDFC8),
+              foregroundColor: const Color(0xFF14352C),
               onPressed: config.canCreateAssessment
                   ? () => context.go(AppRoutes.lmaCreate)
                   : null,
@@ -256,380 +323,220 @@ class _LmaListPageState extends ConsumerState<LmaListPage> {
               label: const Text('New assessment'),
             )
           : null,
-      body: RefreshIndicator(
-        onRefresh: _loadRecords,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _buildFilters(auth),
-            const SizedBox(height: 16),
-            if (_loading)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_error != null)
-              _ErrorCard(message: _error!, onRetry: _loadRecords)
-            else
-              _buildResults(auth),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilters(AuthState auth) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            InkWell(
-              onTap: () => setState(() => _filtersExpanded = !_filtersExpanded),
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text('Filters', style: Theme.of(context).textTheme.titleLarge),
-                    ),
-                    Icon(
-                      _filtersExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                    ),
-                  ],
-                ),
-              ),
+      body: Column(
+        children: [
+          ReportListToolbar(
+            searchController: _searchController,
+            hint: 'Search assessments',
+            statusLabel: _statusChipLabel,
+            dateLabel: formatFilterDateRange(_fromDate, _toDate),
+            onStatus: (value) async {
+              setState(() {
+                _status = value;
+                _page = 1;
+              });
+              await _loadRecords();
+            },
+            onSearch: () {
+              setState(() => _page = 1);
+              _loadRecords();
+            },
+            onOpenFilters: _openFilters,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadRecords,
+              child: _buildBody(auth),
             ),
-            if (_filtersExpanded) ...[
-              const SizedBox(height: 12),
-              TextField(
-                controller: _searchController,
-                decoration: const InputDecoration(
-                  labelText: 'Search',
-                  prefixIcon: Icon(Icons.search),
-                ),
-                onSubmitted: (_) {
-                  setState(() => _page = 1);
-                  _loadRecords();
-                },
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<int?>(
-                value: _status,
-                decoration: const InputDecoration(labelText: 'Status'),
-                items: [
-                  const DropdownMenuItem<int?>(value: null, child: Text('All')),
-                  ...ReportStatus.values.map(
-                    (value) => DropdownMenuItem<int?>(
-                      value: value,
-                      child: Text(ReportStatus.labels[value]!),
-                    ),
-                  ),
-                ],
-                onChanged: (value) async {
-                  setState(() {
-                    _status = value;
-                    _page = 1;
-                  });
-                  await _loadRecords();
-                },
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: _convertedCompanyName.isEmpty ? '' : _convertedCompanyName,
-                decoration: const InputDecoration(labelText: 'Organization'),
-                items: [
-                  const DropdownMenuItem(value: '', child: Text('All')),
-                  ..._convertedCompanies.map(
-                    (company) => DropdownMenuItem(
-                      value: company.companyName,
-                      child: Text(company.companyName),
-                    ),
-                  ),
-                ],
-                onChanged: (value) async {
-                  setState(() {
-                    _convertedCompanyName = value ?? '';
-                    _page = 1;
-                  });
-                  await _loadRecords();
-                },
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: _createdBy.isEmpty ? '' : _createdBy,
-                decoration: const InputDecoration(labelText: 'Created by'),
-                items: [
-                  const DropdownMenuItem(value: '', child: Text('All')),
-                  ..._creators.map(
-                    (creator) => DropdownMenuItem(
-                      value: creator.employeeId,
-                      child: Text(creator.name.isEmpty ? creator.employeeId : creator.name),
-                    ),
-                  ),
-                ],
-                onChanged: (value) async {
-                  setState(() {
-                    _createdBy = value ?? '';
-                    _page = 1;
-                  });
-                  await _loadRecords();
-                },
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: InkWell(
-                      onTap: () => _pickDate(from: true),
-                      child: InputDecorator(
-                        decoration: const InputDecoration(labelText: 'Date from'),
-                        child: Text(
-                          _fromController.text.isEmpty ? 'Select' : _fromController.text,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: InkWell(
-                      onTap: () => _pickDate(from: false),
-                      child: InputDecorator(
-                        decoration: const InputDecoration(labelText: 'Date to'),
-                        child: Text(
-                          _toController.text.isEmpty ? 'Select' : _toController.text,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<int>(
-                value: _limit,
-                decoration: const InputDecoration(labelText: 'Rows per page'),
-                items: _limitOptions
-                    .map((value) => DropdownMenuItem(value: value, child: Text('$value')))
-                    .toList(),
-                onChanged: (value) async {
-                  setState(() {
-                    _limit = value ?? 10;
-                    _page = 1;
-                  });
-                  await _loadRecords();
-                },
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  FilledButton(
-                    onPressed: _loadRecords,
-                    child: const Text('Apply'),
-                  ),
-                  OutlinedButton(
-                    onPressed: () async {
-                      setState(() {
-                        _searchController.clear();
-                        _status = null;
-                        _convertedCompanyName = '';
-                        _createdBy = '';
-                        _fromDate = null;
-                        _toDate = null;
-                        _fromController.clear();
-                        _toController.clear();
-                        _limit = 10;
-                        _page = 1;
-                      });
-                      await _loadCreators();
-                      await _loadRecords();
-                    },
-                    child: const Text('Clear'),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildResults(AuthState auth) {
+  Widget _buildBody(AuthState auth) {
+    if (_loading) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          SizedBox(height: 80),
+          Center(child: CircularProgressIndicator()),
+        ],
+      );
+    }
+    if (_error != null) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [_ErrorCard(message: _error!, onRetry: _loadRecords)],
+      );
+    }
     if (_records.isEmpty) {
-      return const Card(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Center(child: Text('No assessments found.')),
-        ),
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: const [
+          Card(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: Text('No assessments found.')),
+            ),
+          ),
+        ],
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
       children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Text('$_total result(s)'),
-        ),
-        ..._records.map(
-          (record) => Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          record.displayCompanyName,
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                      ),
-                      _StatusChip(
-                        status: record.status,
-                        label: record.displayStatus,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _MetaLine(label: 'Prepared by', value: record.preparedBy ?? 'N/A'),
-                  _MetaLine(label: 'Updated by', value: record.updatedBy ?? 'N/A'),
-                  _MetaLine(label: 'Report date', value: record.reportDate ?? 'N/A'),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      if (auth.canEditRecord(
-                            createdByRole: record.createdByRole,
-                            createdBy: record.raw?['created_by'],
-                          ) &&
-                          record.status != ReportStatus.published)
-                        IconButton.outlined(
-                          tooltip: 'Edit',
-                          onPressed: () => context.go(AppRoutes.lmaEdit(record.id)),
-                          icon: const Icon(Icons.edit_outlined),
-                        ),
-                      if (auth.canViewReports)
-                        IconButton.outlined(
-                          tooltip: 'Preview',
-                          onPressed: () => context.go(AppRoutes.lmaPreview(record.id)),
-                          icon: const Icon(Icons.visibility_outlined),
-                        ),
-                      if (auth.canViewReports)
-                        ReportExportButtons(
-                          iconOnly: true,
-                          loading: _exportingId?.startsWith(record.id) == true,
-                          onPdf: () => _export(record, ExportKind.pdf),
-                          onWord: () => _export(record, ExportKind.word),
-                        ),
-                      if (auth.canDeleteRecord(
-                        createdByRole: record.createdByRole,
-                        createdBy: record.raw?['created_by'],
-                      ))
-                        IconButton.outlined(
-                          tooltip: 'Delete',
-                          onPressed: () => _deleteRecord(record),
-                          icon: const Icon(Icons.delete_outline),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Page $_page of $_pages'),
-            Row(
-              children: [
-                IconButton(
-                  onPressed: _page > 1
-                      ? () async {
-                          setState(() => _page -= 1);
-                          await _loadRecords();
-                        }
-                      : null,
-                  icon: const Icon(Icons.chevron_left),
-                ),
-                IconButton(
-                  onPressed: _page < _pages
-                      ? () async {
-                          setState(() => _page += 1);
-                          await _loadRecords();
-                        }
-                      : null,
-                  icon: const Icon(Icons.chevron_right),
-                ),
-              ],
-            ),
-          ],
+        ..._records.map((record) => _AssessmentCard(
+              record: record,
+              exporting: _exportingId?.startsWith(record.id) == true,
+              items: _menuItems(auth, record),
+              onSelected: (action) => _onMenu(record, action),
+            )),
+        ReportPageBar(
+          page: _page,
+          pages: _pages,
+          onPrevious: _page > 1
+              ? () {
+                  setState(() => _page -= 1);
+                  _loadRecords();
+                }
+              : null,
+          onNext: _page < _pages
+              ? () {
+                  setState(() => _page += 1);
+                  _loadRecords();
+                }
+              : null,
         ),
       ],
     );
   }
-}
 
-class _MetaLine extends StatelessWidget {
-  const _MetaLine({
-    required this.label,
-    required this.value,
-  });
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(
-              text: '$label: ',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            TextSpan(text: value),
-          ],
+  List<PopupMenuEntry<String>> _menuItems(
+    AuthState auth,
+    LeanMaturityAssessmentRecord record,
+  ) {
+    return [
+      if (auth.canViewReports)
+        const PopupMenuItem(value: 'preview', child: Text('Preview')),
+      if (auth.canEditRecord(
+            createdByRole: record.createdByRole,
+            createdBy: record.raw?['created_by'],
+          ) &&
+          record.status != ReportStatus.published)
+        const PopupMenuItem(value: 'edit', child: Text('Edit')),
+      if (auth.canViewReports) ...[
+        const PopupMenuItem(value: 'pdf', child: Text('Export PDF')),
+        const PopupMenuItem(value: 'word', child: Text('Export Word')),
+      ],
+      if (auth.canDeleteRecord(
+        createdByRole: record.createdByRole,
+        createdBy: record.raw?['created_by'],
+      ))
+        PopupMenuItem(
+          value: 'delete',
+          child: Text('Delete',
+              style: TextStyle(color: Theme.of(context).colorScheme.error)),
         ),
-      ),
-    );
+    ];
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status, required this.label});
+class _AssessmentCard extends StatelessWidget {
+  const _AssessmentCard({
+    required this.record,
+    required this.exporting,
+    required this.items,
+    required this.onSelected,
+  });
 
-  final int status;
-  final String label;
+  final LeanMaturityAssessmentRecord record;
+  final bool exporting;
+  final List<PopupMenuEntry<String>> items;
+  final ValueChanged<String> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    final color = status == ReportStatus.published
-        ? AppColors.success
-        : status == ReportStatus.archived
-            ? AppColors.warning
-            : AppColors.secondary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(color: color, fontWeight: FontWeight.w600),
+    final scores = record.scores;
+    final showScore = scores != null && scores.maxScore > 0;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Text(
+                    record.displayCompanyName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                if (exporting)
+                  const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                if (items.isNotEmpty)
+                  PopupMenuButton<String>(
+                    tooltip: 'Actions',
+                    onSelected: onSelected,
+                    itemBuilder: (context) => items,
+                  ),
+              ],
+            ),
+            ReportMetaRow(
+              icon: Icons.place_outlined,
+              text: record.companyBackground?.location ?? '',
+            ),
+            ReportMetaRow(
+              icon: Icons.person_outline,
+              text: record.preparedBy ?? '',
+            ),
+            ReportMetaRow(
+              icon: Icons.edit_outlined,
+              text: labeledPerson(
+                  'Updated by', record.updatedByName ?? record.updatedBy),
+            ),
+            ReportMetaRow(
+              icon: Icons.calendar_today_outlined,
+              text: record.reportDate ?? '',
+            ),
+            ReportMetaRow(
+              icon: Icons.access_time,
+              text: formatUpdatedAt(record.updatedAt),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Flexible(
+                  child: ReportStatusPill(
+                      status: record.status, label: record.displayStatus),
+                ),
+                if (showScore) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    'Score: ${scores.percentage}%',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -651,7 +558,8 @@ class _ErrorCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            Icon(Icons.error_outline, size: 48, color: Theme.of(context).colorScheme.error),
+            Icon(Icons.error_outline,
+                size: 48, color: Theme.of(context).colorScheme.error),
             const SizedBox(height: 12),
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),

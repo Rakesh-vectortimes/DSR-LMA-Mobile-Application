@@ -22,13 +22,19 @@ class MorePage extends ConsumerWidget {
           if (user != null)
             ListTile(
               leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-              title: Text(user.name.isEmpty ? user.email : user.name),
+              title: Text(
+                user.name.isEmpty ? user.email : user.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               subtitle: Text(
                 [
                   user.email,
                   if (user.role != null) user.role!,
                   if (user.companyType != null) user.companyType!,
                 ].join(' · '),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           const Divider(),
@@ -39,6 +45,22 @@ class MorePage extends ConsumerWidget {
               subtitle: const Text('Grades, sections, and questions'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push(AppRoutes.lmaSettings),
+            ),
+          if (auth.showLmaSettings)
+            ListTile(
+              leading: const Icon(Icons.qr_code_2),
+              title: const Text('QR Settings'),
+              subtitle: const Text('Public registration link'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push(AppRoutes.lmaQrSettings),
+            ),
+          if (auth.showLmaSettings)
+            ListTile(
+              leading: const Icon(Icons.fact_check_outlined),
+              title: const Text('LMA Registrations'),
+              subtitle: const Text('Waiting approvals'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push(AppRoutes.lmaRegistrations),
             ),
           if (auth.showLmaSettings) const Divider(),
           ListTile(

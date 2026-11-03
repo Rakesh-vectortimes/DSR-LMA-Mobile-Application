@@ -96,18 +96,34 @@ class _LmaGradeSettingsTabState extends ConsumerState<LmaGradeSettingsTab> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(
-            children: [
-              const Expanded(
-                child: Text('Configure overall grading tiers for lean maturity assessments.'),
-              ),
-              FilledButton.icon(
-                onPressed: () => _openForm(),
-                icon: const Icon(Icons.add),
-                label: const Text('Add Grade'),
-              ),
-            ],
-          ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Configure overall grading tiers for lean maturity assessments.',
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () => _openForm(),
+                    icon: const Icon(Icons.add),
+                    label: const Text(
+                      'Add Grade',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
         ),
         Expanded(
           child: SettingsListScaffold(

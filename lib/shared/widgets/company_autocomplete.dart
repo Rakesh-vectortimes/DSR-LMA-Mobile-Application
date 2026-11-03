@@ -336,12 +336,15 @@ class _CompanyAutocompleteFieldState extends ConsumerState<CompanyAutocompleteFi
                       ? 'Select or type a company'
                       : 'Select a company',
                   prefixIcon: const Icon(Icons.business_outlined),
+                  suffixIconConstraints:
+                      const BoxConstraints(minWidth: 48, minHeight: 48),
                   suffixIcon: Row(
                     mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       if (_loading)
                         const Padding(
-                          padding: EdgeInsets.only(right: 8),
+                          padding: EdgeInsets.only(right: 4),
                           child: SizedBox(
                             width: 18,
                             height: 18,
@@ -350,6 +353,7 @@ class _CompanyAutocompleteFieldState extends ConsumerState<CompanyAutocompleteFi
                         ),
                       IconButton(
                         tooltip: 'Show companies',
+                        visualDensity: VisualDensity.compact,
                         onPressed: widget.enabled ? _openDropdown : null,
                         icon: const Icon(Icons.arrow_drop_down),
                       ),

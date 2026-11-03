@@ -1339,21 +1339,45 @@ class _ImprovementProjectCardState extends State<_ImprovementProjectCard> {
               const Spacer(),
               IconButton(
                 tooltip: 'Add row',
+                visualDensity: VisualDensity.compact,
+                style: IconButton.styleFrom(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  minimumSize: const Size(36, 36),
+                  padding: EdgeInsets.zero,
+                ),
                 onPressed: widget.onAddAfter,
                 icon: const Icon(Icons.add),
               ),
               IconButton(
                 tooltip: 'Move up',
+                visualDensity: VisualDensity.compact,
+                style: IconButton.styleFrom(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  minimumSize: const Size(36, 36),
+                  padding: EdgeInsets.zero,
+                ),
                 onPressed: widget.canMoveUp ? widget.onMoveUp : null,
                 icon: const Icon(Icons.arrow_upward),
               ),
               IconButton(
                 tooltip: 'Move down',
+                visualDensity: VisualDensity.compact,
+                style: IconButton.styleFrom(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  minimumSize: const Size(36, 36),
+                  padding: EdgeInsets.zero,
+                ),
                 onPressed: widget.canMoveDown ? widget.onMoveDown : null,
                 icon: const Icon(Icons.arrow_downward),
               ),
               IconButton(
                 tooltip: 'Delete',
+                visualDensity: VisualDensity.compact,
+                style: IconButton.styleFrom(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  minimumSize: const Size(36, 36),
+                  padding: EdgeInsets.zero,
+                ),
                 onPressed: widget.onRemove,
                 icon: const Icon(Icons.delete_outline),
               ),

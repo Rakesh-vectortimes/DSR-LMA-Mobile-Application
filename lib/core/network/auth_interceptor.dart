@@ -26,16 +26,21 @@ class AuthInterceptor extends QueuedInterceptor {
 
   Future<String?>? _refreshFuture;
 
+  static bool isPublicPath(String path) =>
+      path.toLowerCase().contains('/public/');
+
   static bool shouldSkipBearer(String path) {
     final normalized = path.toLowerCase();
-    return normalized.contains('/auth/login') ||
+    return isPublicPath(normalized) ||
+        normalized.contains('/auth/login') ||
         normalized.contains('/auth/refresh') ||
         normalized.contains('/auth/register');
   }
 
   static bool shouldSkipRefresh(String path) {
     final normalized = path.toLowerCase();
-    return normalized.contains('/auth/login') ||
+    return isPublicPath(normalized) ||
+        normalized.contains('/auth/login') ||
         normalized.contains('/auth/refresh') ||
         normalized.contains('/auth/logout');
   }
@@ -86,7 +91,8 @@ class AuthInterceptor extends QueuedInterceptor {
 
       final headers = Map<String, dynamic>.from(options.headers)
         ..['Authorization'] = 'Bearer $newAccess';
-      final extra = Map<String, dynamic>.from(options.extra)..['auth_retry'] = true;
+      final extra = Map<String, dynamic>.from(options.extra)
+        ..['auth_retry'] = true;
 
       final retryResponse = await _dio.fetch(
         options.copyWith(headers: headers, extra: extra),

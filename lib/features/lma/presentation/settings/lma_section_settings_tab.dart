@@ -95,21 +95,35 @@ class _LmaSectionSettingsTabState extends ConsumerState<LmaSectionSettingsTab> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Manage assessment sections for lean maturity assessments.',
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Manage assessment sections for lean maturity assessments.',
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-              FilledButton.icon(
-                onPressed: () => _openForm(),
-                icon: const Icon(Icons.add),
-                label: const Text('Add Section'),
-              ),
-            ],
+                const SizedBox(width: 8),
+                Flexible(
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () => _openForm(),
+                    icon: const Icon(Icons.add),
+                    label: const Text(
+                      'Add Section',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
         Expanded(
           child: SettingsListScaffold(
             loading: _loading,

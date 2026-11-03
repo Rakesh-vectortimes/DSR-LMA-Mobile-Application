@@ -54,7 +54,7 @@ android {
     applicationVariants.configureEach { variant ->
         if (variant.buildType.name == "release") {
             variant.outputs.configureEach { output ->
-                output.outputFileName = "DSR/LMA.apk"
+                output.outputFileName = "dsr-lma.apk"
             }
         }
     }

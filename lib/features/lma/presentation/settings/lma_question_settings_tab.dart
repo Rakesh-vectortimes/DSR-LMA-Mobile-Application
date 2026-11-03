@@ -130,19 +130,35 @@ class _LmaQuestionSettingsTabState extends ConsumerState<LmaQuestionSettingsTab>
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(
-            children: [
-              const Expanded(
-                child: Text('Manage questions and answer options for each assessment section.'),
-              ),
-              FilledButton.icon(
-                onPressed: _unusedSections.isEmpty ? null : () => _openForm(),
-                icon: const Icon(Icons.add),
-                label: const Text('Add Question Set'),
-              ),
-            ],
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Manage questions and answer options for each assessment section.',
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: _unusedSections.isEmpty ? null : () => _openForm(),
+                    icon: const Icon(Icons.add),
+                    label: const Text(
+                      'Add Question Set',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
         Expanded(
           child: SettingsListScaffold(
             loading: _loading,

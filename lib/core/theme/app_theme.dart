@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Design tokens for DSR & LMA — industrial teal, clear hierarchy.
 abstract final class AppColors {
@@ -38,6 +39,16 @@ abstract final class AppTheme {
         foregroundColor: AppColors.onPrimary,
         elevation: 0,
         centerTitle: false,
+        titleSpacing: 16,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        titleAlignment: ListTileTitleAlignment.center,
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       ),
       tabBarTheme: const TabBarThemeData(
         labelColor: AppColors.onPrimary,

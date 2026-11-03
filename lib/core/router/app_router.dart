@@ -8,11 +8,16 @@ import '../../features/auth/presentation/splash_page.dart';
 import '../../features/dsr/presentation/dsr_form_page.dart';
 import '../../features/dsr/presentation/dsr_list_page.dart';
 import '../../features/dsr/presentation/dsr_preview_page.dart';
+import '../../features/home/presentation/home_page.dart';
 import '../../features/home/presentation/home_shell.dart';
 import '../../features/lma/presentation/lma_form_page.dart';
 import '../../features/lma/presentation/lma_list_page.dart';
 import '../../features/lma/presentation/lma_preview_page.dart';
 import '../../features/lma/presentation/settings/lma_settings_page.dart';
+import '../../features/lma_registration/presentation/lma_qr_settings_page.dart';
+import '../../features/lma_registration/presentation/lma_register_page.dart';
+import '../../features/lma_registration/presentation/lma_registration_detail_page.dart';
+import '../../features/lma_registration/presentation/lma_registration_list_page.dart';
 import '../../features/more/presentation/more_page.dart';
 import 'app_routes.dart';
 
@@ -32,17 +37,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final onSplash = loc == AppRoutes.splash;
       final onLogin = loc == AppRoutes.login;
 
+      final onPublicRegister = loc == AppRoutes.lmaRegister;
+
       switch (auth.status) {
         case AuthStatus.unknown:
           return onSplash ? null : AppRoutes.splash;
         case AuthStatus.loading:
-          if (onSplash || onLogin) return null;
+          if (onSplash || onLogin || onPublicRegister) return null;
           return null;
         case AuthStatus.unauthenticated:
         case AuthStatus.error:
-          return onLogin ? null : AppRoutes.login;
+          if (onLogin || onPublicRegister) return null;
+          return AppRoutes.login;
         case AuthStatus.authenticated:
-          if (onSplash || onLogin) return AppRoutes.lma;
+          if (onSplash || onLogin) return AppRoutes.home;
           return null;
       }
     },
@@ -98,11 +106,41 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.lmaSettings,
         builder: (context, state) => const LmaSettingsPage(),
       ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRoutes.lmaRegister,
+        builder: (context, state) => const LmaRegisterPage(),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRoutes.lmaQrSettings,
+        builder: (context, state) => const LmaQrSettingsPage(),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: AppRoutes.lmaRegistrations,
+        builder: (context, state) => const LmaRegistrationListPage(),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/lma-registrations/:id',
+        builder: (context, state) => LmaRegistrationDetailPage(
+          registrationId: state.pathParameters['id']!,
+        ),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return HomeShell(navigationShell: navigationShell);
         },
         branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.home,
+                builder: (context, state) => const HomePage(),
+              ),
+            ],
+          ),
           StatefulShellBranch(
             routes: [
               GoRoute(

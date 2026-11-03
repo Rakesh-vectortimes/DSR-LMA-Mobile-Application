@@ -81,8 +81,14 @@ void main() {
       expect(AuthInterceptor.shouldSkipBearer('/auth/refresh'), isTrue);
       expect(AuthInterceptor.shouldSkipBearer('/auth/me'), isFalse);
       expect(AuthInterceptor.shouldSkipBearer('/auth/logout'), isFalse);
-      expect(AuthInterceptor.shouldSkipBearer('/lean-maturity-assessments'), isFalse);
+      expect(AuthInterceptor.shouldSkipBearer('/lean-maturity-assessments'),
+          isFalse);
       expect(AuthInterceptor.shouldSkipBearer('/diagnostic-studies'), isFalse);
+      expect(
+          AuthInterceptor.shouldSkipBearer('/public/lma-registration'), isTrue);
+      expect(
+          AuthInterceptor.shouldSkipBearer('/public/lma-registration/config'),
+          isTrue);
     });
 
     test('skips refresh loop on auth endpoints', () {
@@ -90,6 +96,8 @@ void main() {
       expect(AuthInterceptor.shouldSkipRefresh('/auth/refresh'), isTrue);
       expect(AuthInterceptor.shouldSkipRefresh('/auth/logout'), isTrue);
       expect(AuthInterceptor.shouldSkipRefresh('/auth/me'), isFalse);
+      expect(AuthInterceptor.shouldSkipRefresh('/public/lma-registration'),
+          isTrue);
     });
   });
 
@@ -201,7 +209,8 @@ void main() {
       final apiAdapter = _ScriptedAdapter([
         (options) {
           expect(options.headers.containsKey('Authorization'), isFalse);
-          return _json({'success': false, 'message': 'Invalid credentials'}, 401);
+          return _json(
+              {'success': false, 'message': 'Invalid credentials'}, 401);
         },
       ]);
 
@@ -217,7 +226,8 @@ void main() {
       );
 
       await expectLater(
-        () => dio.post<dynamic>('/auth/login', data: {'email': 'a@b.com', 'password': 'x'}),
+        () => dio.post<dynamic>('/auth/login',
+            data: {'email': 'a@b.com', 'password': 'x'}),
         throwsA(isA<DioException>()),
       );
       expect(refreshAdapter.calls, 0);

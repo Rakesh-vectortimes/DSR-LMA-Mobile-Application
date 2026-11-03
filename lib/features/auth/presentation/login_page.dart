@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/router/app_routes.dart';
 import '../../../core/theme/app_theme.dart';
 import 'auth_controller.dart';
 
@@ -39,10 +41,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
     final submitting = auth.status == AuthStatus.loading;
-    final errorMessage =
-        (auth.status == AuthStatus.error || auth.status == AuthStatus.unauthenticated)
-            ? auth.errorMessage
-            : null;
+    final errorMessage = (auth.status == AuthStatus.error ||
+            auth.status == AuthStatus.unauthenticated)
+        ? auth.errorMessage
+        : null;
 
     return Scaffold(
       body: SafeArea(
@@ -82,12 +84,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           padding: const EdgeInsets.all(12),
                           child: Row(
                             children: [
-                              const Icon(Icons.error_outline, color: AppColors.error, size: 20),
+                              const Icon(Icons.error_outline,
+                                  color: AppColors.error, size: 20),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
                                   errorMessage,
-                                  style: const TextStyle(color: AppColors.error, fontSize: 13),
+                                  style: const TextStyle(
+                                      color: AppColors.error, fontSize: 13),
                                 ),
                               ),
                             ],
@@ -107,7 +111,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         prefixIcon: Icon(Icons.email_outlined),
                       ),
                       validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Email is required';
+                        if (v == null || v.trim().isEmpty)
+                          return 'Email is required';
                         final email = v.trim();
                         if (!email.contains('@') || !email.contains('.')) {
                           return 'Enter a valid email';
@@ -116,7 +121,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       },
                       onChanged: (_) {
                         if (auth.errorMessage != null) {
-                          ref.read(authControllerProvider.notifier).clearError();
+                          ref
+                              .read(authControllerProvider.notifier)
+                              .clearError();
                         }
                       },
                     ),
@@ -134,7 +141,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         prefixIcon: const Icon(Icons.lock_outline),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                            _obscure
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
                           ),
                           onPressed: submitting
                               ? null
@@ -142,12 +151,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         ),
                       ),
                       validator: (v) {
-                        if (v == null || v.isEmpty) return 'Password is required';
+                        if (v == null || v.isEmpty)
+                          return 'Password is required';
                         return null;
                       },
                       onChanged: (_) {
                         if (auth.errorMessage != null) {
-                          ref.read(authControllerProvider.notifier).clearError();
+                          ref
+                              .read(authControllerProvider.notifier)
+                              .clearError();
                         }
                       },
                     ),
@@ -164,6 +176,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               ),
                             )
                           : const Text('Sign in'),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: submitting
+                          ? null
+                          : () => context.push(AppRoutes.lmaRegister),
+                      child: const Text('Register a company assessment'),
                     ),
                   ],
                 ),
